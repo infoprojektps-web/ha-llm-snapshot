@@ -4,7 +4,7 @@ slug: "ha_llm_snapshot"
 description: >-
   Creates a portable, privacy-filtered Home Assistant snapshot for analysis
   by an external LLM.
-url: "https://github.com/OWNER/ha-llm-snapshot"
+url: "https://github.com/infoprojektps-web/ha-llm-snapshot"
 arch:
   - aarch64
   - amd64

@@ -1,11 +1,10 @@
+supervisor_add_addon_repository
+
 # HA LLM Snapshot Exporter
 
 A Home Assistant add-on that creates a portable snapshot of your Home Assistant installation for analysis by ChatGPT, Codex, Claude, Gemini, or another external LLM.
 
 The snapshot contains the complete entity inventory, current states, devices, integrations, services, YAML configuration, dependency references, and an automatically generated health report.
-
-[![Dodaj repozytorium do Home Assistant](https://my.home-assistant.io/badges/supervisor_addon_repo.svg)](https://my.home-assistant.io/redirect/supervisor_addon_repo/?repository_url=https%3A%2F%2Fgithub.com%2Finfoprojektps-web%2Fha-llm-snapshot)
-
 
 ## Features
 

@@ -1,0 +1,22 @@
+configuration:
+  include_states:
+    name: Include current states
+    description: Include compact, privacy-filtered current entity states.
+  include_services:
+    name: Include actions and services
+    description: Include the available Home Assistant action catalogue.
+  include_packages:
+    name: Include packages
+    description: Include sanitized YAML files from the packages directory.
+  include_dashboards:
+    name: Include YAML dashboards
+    description: Include sanitized YAML-mode dashboard files.
+  include_diagnostics:
+    name: Include enhanced diagnostics
+    description: When an issue is detected, collect filtered repairs, logs, and diagnostics for affected integrations and devices.
+  redact_locations:
+    name: Redact locations (optional)
+    description: Redact person, device tracker, zone, and coordinate values. Disable for full technical analysis.
+  keep_snapshots:
+    name: Snapshots to retain
+    description: Number of newest ZIP archives to keep in the share folder.

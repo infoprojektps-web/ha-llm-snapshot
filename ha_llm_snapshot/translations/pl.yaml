@@ -1,0 +1,22 @@
+configuration:
+  include_states:
+    name: Dołącz bieżące stany
+    description: Dołącza skrócone i przefiltrowane stany encji.
+  include_services:
+    name: Dołącz akcje i usługi
+    description: Dołącza katalog dostępnych akcji Home Assistanta.
+  include_packages:
+    name: Dołącz pakiety
+    description: Dołącza oczyszczone pliki YAML z katalogu packages.
+  include_dashboards:
+    name: Dołącz dashboardy YAML
+    description: Dołącza oczyszczone dashboardy zapisane w YAML.
+  include_diagnostics:
+    name: Dołącz rozszerzoną diagnostykę
+    description: Przy wykryciu błędu pobiera przefiltrowane naprawy, logi oraz diagnostykę problematycznych integracji i urządzeń.
+  redact_locations:
+    name: Ukrywaj lokalizacje (opcjonalnie)
+    description: Usuwa lokalizacje osób, telefonów, stref i współrzędne. Wyłącz dla pełnej analizy technicznej.
+  keep_snapshots:
+    name: Liczba zachowanych snapshotów
+    description: Liczba najnowszych archiwów ZIP zachowywanych w katalogu share.

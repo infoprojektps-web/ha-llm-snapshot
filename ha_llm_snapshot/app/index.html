@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>LLM Snapshot</title>
+  <style>
+    :root {
+      --bg: #f4f7fa;
+      --card: #fff;
+      --text: #18212b;
+      --muted: #687581;
+      --line: #dce3e9;
+      --accent: #03a9f4;
+      --accent-dark: #0288d1;
+      --ok: #16834b;
+      --warn: #9a6400;
+      --error: #c62828;
+      --shadow: 0 10px 28px rgba(35, 55, 75, .09);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #101820;
+        --card: #1c2731;
+        --text: #edf3f7;
+        --muted: #a7b4be;
+        --line: #34434f;
+        --accent: #29b6f6;
+        --accent-dark: #039be5;
+        --ok: #66d397;
+        --warn: #ffc45a;
+        --error: #ff7979;
+        --shadow: 0 10px 28px rgba(0, 0, 0, .25);
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    main { max-width: 760px; margin: 0 auto; padding: 28px 18px 50px; }
+    h1 { margin: 0 0 8px; font-size: clamp(26px, 5vw, 38px); letter-spacing: -.7px; }
+    .lead { margin: 0 0 24px; color: var(--muted); line-height: 1.55; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 24px;
+      box-shadow: var(--shadow);
+    }
+    .shield {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 20px;
+      color: var(--ok);
+      font-weight: 650;
+    }
+    .shield svg { width: 22px; height: 22px; fill: currentColor; }
+    button, .download {
+      display: inline-flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 48px;
+      border: 0;
+      border-radius: 12px;
+      padding: 0 22px;
+      background: var(--accent);
+      color: #fff;
+      font-size: 16px;
+      font-weight: 700;
+      text-decoration: none;
+      cursor: pointer;
+      transition: background .15s, transform .15s;
+    }
+    button:hover, .download:hover { background: var(--accent-dark); }
+    button:active, .download:active { transform: translateY(1px); }
+    button:disabled { opacity: .55; cursor: wait; }
+    .download { background: var(--ok); margin-left: 8px; }
+    .download:hover { filter: brightness(.92); background: var(--ok); }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    .actions .download { margin: 0; }
+    #status { min-height: 25px; margin: 18px 0 0; color: var(--muted); line-height: 1.5; }
+    #status.ok { color: var(--ok); }
+    #status.warn { color: var(--warn); }
+    #status.error { color: var(--error); }
+    .facts {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-top: 20px;
+    }
+    .fact { padding: 14px; border: 1px solid var(--line); border-radius: 12px; }
+    .fact strong { display: block; font-size: 21px; }
+    .fact span { color: var(--muted); font-size: 13px; }
+    details { margin-top: 22px; border-top: 1px solid var(--line); padding-top: 18px; }
+    summary { cursor: pointer; font-weight: 650; }
+    ul { color: var(--muted); line-height: 1.6; padding-left: 21px; }
+    .spinner {
+      width: 18px; height: 18px; margin-right: 9px;
+      border: 2px solid rgba(255,255,255,.45); border-top-color: #fff;
+      border-radius: 50%; animation: spin .8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @media (max-width: 550px) {
+      .facts { grid-template-columns: 1fr; }
+      button, .download { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Snapshot dla LLM</h1>
+    <p class="lead">Utwórz paczkę ZIP z konfiguracją i pełnym spisem encji, którą możesz przekazać ChatGPT, Codexowi lub innemu modelowi.</p>
+    <section class="card">
+      <div class="shield" aria-label="Ochrona prywatności">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1 3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4Zm-1 16-4-4 1.41-1.41L11 14.17l5.59-5.58L18 10l-7 7Z"/></svg>
+        Filtr sekretów jest zawsze aktywny
+      </div>
+      <div class="actions">
+        <button id="generate" type="button">Utwórz snapshot</button>
+        <a id="download" class="download" href="api/download/latest" hidden>Pobierz ZIP</a>
+      </div>
+      <p id="status" role="status" aria-live="polite">Sprawdzam stan dodatku…</p>
+      <div id="facts" class="facts" hidden>
+        <div class="fact"><strong id="entities">—</strong><span>encji</span></div>
+        <div class="fact"><strong id="files">—</strong><span>plików konfiguracji</span></div>
+        <div class="fact"><strong id="size">—</strong><span>rozmiar ZIP</span></div>
+      </div>
+      <details>
+        <summary>Co znajdzie się w paczce?</summary>
+        <ul>
+          <li>pełny spis encji, także wyłączonych i chwilowo niedostępnych,</li>
+          <li>urządzenia, obszary, integracje i dostępne usługi,</li>
+          <li>automatyzacje, skrypty, sceny, pakiety i pulpity YAML,</li>
+          <li>czytelny raport zdrowia i lista potencjalnie brakujących encji,</li>
+          <li>przy wykryciu problemu: przefiltrowane logi, naprawy oraz diagnostyka problematycznych integracji i urządzeń.</li>
+        </ul>
+        <p class="lead">Plik <code>secrets.yaml</code>, baza danych i katalog <code>.storage</code> nigdy nie są kopiowane. Identyfikatory techniczne są zachowywane celowo, aby model mógł łączyć encje z konfiguracją.</p>
+      </details>
+    </section>
+  </main>
+  <script>
+    const button = document.querySelector('#generate');
+    const download = document.querySelector('#download');
+    const statusEl = document.querySelector('#status');
+    const facts = document.querySelector('#facts');
+    const panelRoot = window.location.href.endsWith('/')
+      ? window.location.href
+      : `${window.location.href}/`;
+    const endpoint = path => new URL(path, panelRoot).toString();
+
+    function formatBytes(bytes) {
+      if (!Number.isFinite(bytes)) return '—';
+      if (bytes < 1024) return `${bytes} B`;
+      if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)} KB`;
+      return `${(bytes / 1048576).toFixed(1)} MB`;
+    }
+
+    function showResult(result) {
+      const counts = result.counts || {};
+      document.querySelector('#entities').textContent = counts.entities ?? '—';
+      document.querySelector('#files').textContent = counts.config_files ?? '—';
+      document.querySelector('#size').textContent = formatBytes(result.bytes);
+      facts.hidden = false;
+      download.href = endpoint(`api/download/${encodeURIComponent(result.filename)}`);
+      download.hidden = false;
+      const warnings = result.warnings?.length || 0;
+      statusEl.className = warnings ? 'warn' : 'ok';
+      statusEl.textContent = warnings
+        ? `Snapshot gotowy, ale zawiera ${warnings} ostrzeżenie(a). Szczegóły są w paczce.`
+        : 'Snapshot jest gotowy do pobrania.';
+    }
+
+    async function refresh() {
+      try {
+        const response = await fetch(endpoint('api/status'), { cache: 'no-store' });
+        if (!response.ok) throw new Error('status');
+        const data = await response.json();
+        button.disabled = data.generating;
+        if (data.generating) {
+          button.innerHTML = '<span class="spinner"></span>Tworzenie…';
+          statusEl.textContent = 'Odczytuję konfigurację Home Assistant i filtruję dane.';
+        } else {
+          button.textContent = 'Utwórz snapshot';
+          if (data.last_result) showResult(data.last_result);
+          else if (data.latest) {
+            download.href = endpoint(data.latest.download_url);
+            download.hidden = false;
+            statusEl.textContent = `Ostatni plik: ${data.latest.filename} (${formatBytes(data.latest.bytes)}).`;
+          } else statusEl.textContent = 'Nie utworzono jeszcze żadnego snapshotu.';
+        }
+      } catch (_error) {
+        statusEl.className = 'error';
+        statusEl.textContent = 'Nie można odczytać stanu dodatku.';
+      }
+    }
+
+    button.addEventListener('click', async () => {
+      button.disabled = true;
+      button.innerHTML = '<span class="spinner"></span>Tworzenie…';
+      download.hidden = true;
+      facts.hidden = true;
+      statusEl.className = '';
+      statusEl.textContent = 'Odczytuję konfigurację Home Assistant i filtruję dane. To może potrwać kilkadziesiąt sekund.';
+      try {
+        const response = await fetch(endpoint('api/generate'), { method: 'POST' });
+        const result = await response.json();
+        if (!response.ok || !result.success) throw new Error(result.error || 'Błąd');
+        showResult(result);
+      } catch (error) {
+        statusEl.className = 'error';
+        statusEl.textContent = error.message || 'Nie udało się utworzyć snapshotu.';
+      } finally {
+        button.disabled = false;
+        button.textContent = 'Utwórz nowy snapshot';
+      }
+    });
+
+    refresh();
+  </script>
+</body>
+</html>

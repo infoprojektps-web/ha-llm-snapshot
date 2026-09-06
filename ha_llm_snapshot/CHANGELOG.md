@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.0
+
+- Export every Lovelace dashboard through Home Assistant's read-only WebSocket
+  API, including dashboards stored in UI/storage mode and Lovelace resources.
+- Add an opt-in `.storage` export. Every source file must be valid JSON and is
+  recursively filtered before it is written; raw `.storage` files are never copied.
+- Preserve complete dashboard and storage lists without the diagnostic list limit.
+- Include dashboard and filtered storage references in entity/service dependency
+  analysis.
+
 ## 0.2.0
 
 - Add `HEALTH_REPORT.md` and `health-report.json` with prioritized integration,

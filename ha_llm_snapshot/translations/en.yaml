@@ -9,8 +9,11 @@ configuration:
     name: Include packages
     description: Include sanitized YAML files from the packages directory.
   include_dashboards:
-    name: Include YAML dashboards
-    description: Include sanitized YAML-mode dashboard files.
+    name: Include all Lovelace dashboards
+    description: Fetch YAML- and storage-mode dashboard configurations plus Lovelace resources through the Home Assistant API.
+  include_storage:
+    name: Include filtered .storage directory
+    description: Optionally include every valid JSON file from .storage after passwords, tokens, keys, and other authentication data are removed. Raw files are never copied.
   include_diagnostics:
     name: Include enhanced diagnostics
     description: When an issue is detected, collect filtered repairs, logs, and diagnostics for affected integrations and devices.

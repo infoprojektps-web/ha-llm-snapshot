@@ -136,11 +136,13 @@
         <ul>
           <li>pełny spis encji, także wyłączonych i chwilowo niedostępnych,</li>
           <li>urządzenia, obszary, integracje i dostępne usługi,</li>
-          <li>automatyzacje, skrypty, sceny, pakiety i pulpity YAML,</li>
+          <li>automatyzacje, skrypty, sceny i pakiety YAML,</li>
+          <li>wszystkie pulpity Lovelace, także zapisane przez edytor graficzny,</li>
+          <li>opcjonalnie przefiltrowane pliki JSON z katalogu <code>.storage</code>,</li>
           <li>czytelny raport zdrowia i lista potencjalnie brakujących encji,</li>
           <li>przy wykryciu problemu: przefiltrowane logi, naprawy oraz diagnostyka problematycznych integracji i urządzeń.</li>
         </ul>
-        <p class="lead">Plik <code>secrets.yaml</code>, baza danych i katalog <code>.storage</code> nigdy nie są kopiowane. Identyfikatory techniczne są zachowywane celowo, aby model mógł łączyć encje z konfiguracją.</p>
+        <p class="lead">Plik <code>secrets.yaml</code> i baza danych nigdy nie są kopiowane. Katalog <code>.storage</code> jest dołączany tylko po włączeniu opcji; każdy plik jest parsowany jako JSON i filtrowany, a surowa treść nie trafia do paczki. Identyfikatory techniczne są zachowywane celowo, aby model mógł łączyć encje z konfiguracją.</p>
       </details>
     </section>
   </main>

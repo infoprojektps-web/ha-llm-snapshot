@@ -31,6 +31,11 @@ URL_SECRET_PARAMETER = re.compile(
 JWT_TOKEN = re.compile(
     r"\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b"
 )
+STORAGE_SENSITIVE_KEY = re.compile(
+    r"(?:^|[\s_-])(?:pin|psk|passphrase|encryption[\s_-]?key|"
+    r"registration[\s_-]?code)(?:$|[\s_-])",
+    re.IGNORECASE,
+)
 YAML_KEY_VALUE = re.compile(r"^(\s*)([^#][^:]{0,100}):(.*)$")
 INLINE_SECRET_VALUE = re.compile(
     r"((?:^|[{,\s])[\"']?(?:password|passwd|token|secret|api[_-]?key|client[_-]?secret|"
@@ -136,7 +141,13 @@ def redact_scalar(value: Any) -> Any:
     return value
 
 
-def sanitize_data(value: Any, *, redact_locations: bool = True, key: str = "") -> Any:
+def sanitize_data(
+    value: Any,
+    *,
+    redact_locations: bool = True,
+    key: str = "",
+    list_limit: int | None = 500,
+) -> Any:
     """Recursively remove values whose keys commonly carry credentials or location."""
     if key and (
         SENSITIVE_KEY.search(key)
@@ -149,13 +160,49 @@ def sanitize_data(value: Any, *, redact_locations: bool = True, key: str = "") -
                 child_value,
                 redact_locations=redact_locations,
                 key=str(child_key),
+                list_limit=list_limit,
+            )
+            for child_key, child_value in value.items()
+        }
+    if isinstance(value, list):
+        items = value if list_limit is None else value[:list_limit]
+        return [
+            sanitize_data(
+                item,
+                redact_locations=redact_locations,
+                key=key,
+                list_limit=list_limit,
+            )
+            for item in items
+        ]
+    return redact_scalar(value)
+
+
+def sanitize_storage_data(
+    value: Any, *, redact_locations: bool = True, key: str = ""
+) -> Any:
+    """Sanitize persistent HA storage without truncating registry/dashboard lists."""
+    if key and (
+        SENSITIVE_KEY.search(key)
+        or STORAGE_SENSITIVE_KEY.search(key)
+        or (redact_locations and LOCATION_KEY.search(key))
+    ):
+        return "[REDACTED]"
+    if isinstance(value, dict):
+        return {
+            str(child_key): sanitize_storage_data(
+                child_value,
+                redact_locations=redact_locations,
+                key=str(child_key),
             )
             for child_key, child_value in value.items()
         }
     if isinstance(value, list):
         return [
-            sanitize_data(item, redact_locations=redact_locations, key=key)
-            for item in value[:500]
+            sanitize_storage_data(
+                item, redact_locations=redact_locations, key=key
+            )
+            for item in value
         ]
     return redact_scalar(value)
 
@@ -687,6 +734,15 @@ class SnapshotBuilder:
                 except Exception as exc:  # continue with a clearly marked partial export
                     results[name] = [] if name != "system" else {}
                     self.warnings.append(f"Could not export {name}: {exc}")
+            if self.options.get("include_dashboards", True):
+                results["lovelace"] = await self._collect_lovelace(client)
+            else:
+                results["lovelace"] = {
+                    "dashboards": [],
+                    "resources": [],
+                    "configs": [],
+                    "errors": [],
+                }
             if self.options.get("include_diagnostics", True):
                 try:
                     results["repairs"] = await client.call("repairs/list_issues")
@@ -718,6 +774,59 @@ class SnapshotBuilder:
                 {"config_entries": {}, "devices": {}, "errors": []},
             )
         return results
+
+    async def _collect_lovelace(
+        self, client: HomeAssistantWebSocket
+    ) -> dict[str, Any]:
+        """Collect YAML- and storage-mode Lovelace dashboards via HA's API."""
+        result: dict[str, Any] = {
+            "dashboards": [],
+            "resources": [],
+            "configs": [],
+            "errors": [],
+        }
+        try:
+            dashboards = await client.call("lovelace/dashboards/list")
+            result["dashboards"] = dashboards if isinstance(dashboards, list) else []
+        except Exception as exc:
+            result["errors"].append(
+                {"request": "lovelace/dashboards/list", "error": str(exc)}
+            )
+
+        try:
+            resources = await client.call("lovelace/resources")
+            result["resources"] = resources if isinstance(resources, list) else []
+        except Exception as exc:
+            result["errors"].append(
+                {"request": "lovelace/resources", "error": str(exc)}
+            )
+
+        requested_paths: list[str | None] = [None]
+        for dashboard in result["dashboards"]:
+            if not isinstance(dashboard, dict):
+                continue
+            url_path = dashboard.get("url_path")
+            if isinstance(url_path, str) and url_path and url_path not in requested_paths:
+                requested_paths.append(url_path)
+
+        for url_path in requested_paths:
+            params = {"url_path": url_path} if url_path else {}
+            try:
+                config = await client.call("lovelace/config", **params)
+                result["configs"].append(
+                    {"url_path": url_path, "config": config}
+                )
+            except Exception as exc:
+                label = url_path or "default"
+                result["errors"].append(
+                    {"request": f"lovelace/config ({label})", "error": str(exc)}
+                )
+
+        for error in result["errors"]:
+            self.diagnostic_notes.append(
+                f"Lovelace API unavailable for {error['request']}: {error['error']}"
+            )
+        return result
 
     @staticmethod
     def _needs_deep_diagnostics(results: dict[str, Any]) -> bool:
@@ -919,6 +1028,124 @@ class SnapshotBuilder:
             exported[output_name.as_posix()] = sanitized
         return exported
 
+    def _export_lovelace(
+        self, destination: Path, collected: dict[str, Any]
+    ) -> dict[str, str]:
+        """Write complete Lovelace metadata and configs collected via WebSocket."""
+        if not self.options.get("include_dashboards", True):
+            return {}
+        redact_locations = bool(self.options.get("redact_locations", False))
+        lovelace = collected.get("lovelace", {})
+        if not isinstance(lovelace, dict):
+            return {}
+        exported: dict[str, str] = {}
+
+        def write(relative_name: str, value: Any) -> None:
+            safe_value = sanitize_data(
+                value,
+                redact_locations=redact_locations,
+                list_limit=None,
+            )
+            output_path = destination / relative_name
+            json_dump(output_path, safe_value)
+            exported[relative_name] = output_path.read_text(encoding="utf-8")
+
+        write("lovelace/dashboards.json", lovelace.get("dashboards", []))
+        write("lovelace/resources.json", lovelace.get("resources", []))
+
+        index: list[dict[str, Any]] = []
+        configs = lovelace.get("configs", [])
+        if not isinstance(configs, list):
+            configs = []
+        for position, item in enumerate(configs, 1):
+            if not isinstance(item, dict):
+                continue
+            url_path = item.get("url_path")
+            slug_source = str(url_path or "default")
+            slug = re.sub(r"[^a-zA-Z0-9_-]+", "-", slug_source).strip("-")
+            slug = slug or "dashboard"
+            relative_name = f"lovelace/config-{position:03d}-{slug}.json"
+            write(relative_name, item.get("config", {}))
+            index.append(
+                {
+                    "url_path": url_path,
+                    "file": relative_name,
+                }
+            )
+        write(
+            "lovelace/index.json",
+            {
+                "dashboards": index,
+                "collection_errors": lovelace.get("errors", []),
+            },
+        )
+        return exported
+
+    def _export_storage(self, destination: Path) -> dict[str, str]:
+        """Export JSON from .storage after credential and location filtering."""
+        if not self.options.get("include_storage", False):
+            return {}
+        source_root = self.config_root / ".storage"
+        if not source_root.is_dir():
+            self.warnings.append("Requested .storage export, but the directory is absent.")
+            return {}
+
+        exported: dict[str, str] = {}
+        index: list[dict[str, Any]] = []
+        resolved_root = source_root.resolve()
+        for source in sorted(source_root.rglob("*")):
+            if not source.is_file() or source.is_symlink():
+                continue
+            try:
+                resolved_source = source.resolve()
+                resolved_source.relative_to(resolved_root)
+                relative = source.relative_to(source_root)
+                size = source.stat().st_size
+            except (OSError, ValueError) as exc:
+                self.warnings.append(f"Skipped unsafe .storage path {source.name}: {exc}")
+                continue
+            if size > 10_000_000:
+                self.warnings.append(f"Skipped oversized .storage file: {relative}")
+                continue
+            try:
+                value = json.loads(source.read_text(encoding="utf-8"))
+            except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+                self.warnings.append(
+                    f"Skipped non-JSON or unreadable .storage file {relative}: {exc}"
+                )
+                continue
+
+            sanitized = sanitize_storage_data(
+                value,
+                redact_locations=bool(self.options.get("redact_locations", False)),
+            )
+            output_name = Path("storage") / relative
+            output_path = destination / output_name
+            json_dump(output_path, sanitized)
+            output_key = output_name.as_posix()
+            exported[output_key] = output_path.read_text(encoding="utf-8")
+            index.append(
+                {
+                    "source": f".storage/{relative.as_posix()}",
+                    "file": output_key,
+                    "source_bytes": size,
+                }
+            )
+
+        index_path = destination / "storage" / "index.json"
+        json_dump(
+            index_path,
+            {
+                "files": index,
+                "notice": (
+                    "Every file was parsed as JSON and recursively filtered. "
+                    "No raw .storage file was copied."
+                ),
+            },
+        )
+        exported["storage/index.json"] = index_path.read_text(encoding="utf-8")
+        return exported
+
     async def build(self) -> dict[str, Any]:
         collected = await self._collect()
         redact_locations = bool(self.options.get("redact_locations", False))
@@ -952,7 +1179,10 @@ class SnapshotBuilder:
             root = Path(temp_name) / f"ha-llm-snapshot-{stamp}"
             root.mkdir(parents=True)
 
-            exported_text = self._export_config(root)
+            config_text = self._export_config(root)
+            lovelace_text = self._export_lovelace(root, collected)
+            storage_text = self._export_storage(root)
+            exported_text = {**config_text, **lovelace_text, **storage_text}
             references = build_references(
                 exported_text, known_entities, known_services
             )
@@ -1065,14 +1295,18 @@ class SnapshotBuilder:
             )
             json_dump(root / "system.json", safe_system)
             snapshot_info = {
-                "schema_version": 2,
-                "exporter_version": "0.2.0",
+                "schema_version": 3,
+                "exporter_version": "0.3.0",
                 "created_at": timestamp.isoformat(),
                 "privacy_filter": {
                     "locations_redacted": redact_locations,
                     "secrets_file_excluded": True,
-                    "storage_directory_excluded": True,
-                    "config_entry_data_excluded": True,
+                    "storage_directory_included": bool(
+                        self.options.get("include_storage", False)
+                    ),
+                    "storage_json_only": True,
+                    "storage_credentials_redacted": True,
+                    "config_entry_credentials_redacted": True,
                     "credentials_redacted": True,
                     "device_registry_identifiers_included": True,
                     "opaque_technical_identifiers_preserved": True,
@@ -1081,7 +1315,11 @@ class SnapshotBuilder:
                     "entities": len(inventory),
                     "devices": len(_list_result(collected.get("devices"), "devices")),
                     "services": len(known_services),
-                    "config_files": len(exported_text),
+                    "config_files": len(config_text),
+                    "lovelace_files": len(lovelace_text),
+                    "storage_files": len(
+                        [name for name in storage_text if name != "storage/index.json"]
+                    ),
                     "missing_references": len(references["referenced_but_missing"]),
                     "integration_issues": health_report["summary"]["integration_issues"],
                     "device_issues": health_report["summary"]["devices_with_unavailable_entities"],
@@ -1156,8 +1394,11 @@ present in the supplied files.
    problem triggered deeper collection.
 4. Use `entities_all.jsonl` as the authoritative entity inventory.
 5. Use `references.json` to locate cross-file dependencies.
-6. Inspect relevant files under `config/` before suggesting changes.
-7. Use `services.json` to validate action names such as `notify.mobile_app_*`.
+6. Inspect `lovelace/` for every dashboard fetched through Home Assistant's API.
+7. When present, use filtered `storage/` data for registries and UI-managed
+   configuration. It is not a raw copy of `.storage`.
+8. Inspect relevant files under `config/` before suggesting changes.
+9. Use `services.json` to validate action names such as `notify.mobile_app_*`.
 
 Report configuration errors, missing references, conflicting writers, unsafe
 failure modes, unavailable entities, duplicated logic, and opportunities to
@@ -1167,6 +1408,8 @@ Do not rewrite configuration unless the user explicitly requests a patch.
 ## Privacy note
 
 Automated redaction removes common credentials and, when enabled, locations.
+Files from `.storage` are included only when explicitly enabled, must be valid
+JSON, and are recursively filtered before export. No raw `.storage` file is copied.
 Technical identifiers are intentionally preserved so entity and device
 relationships remain analyzable. Friendly names and user-authored text can
 contain personal information.
@@ -1179,6 +1422,7 @@ def load_options(path: Path = Path("/data/options.json")) -> dict[str, Any]:
         "include_services": True,
         "include_packages": True,
         "include_dashboards": True,
+        "include_storage": False,
         "include_diagnostics": True,
         "redact_locations": False,
         "keep_snapshots": 3,

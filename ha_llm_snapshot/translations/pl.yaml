@@ -9,8 +9,11 @@ configuration:
     name: Dołącz pakiety
     description: Dołącza oczyszczone pliki YAML z katalogu packages.
   include_dashboards:
-    name: Dołącz dashboardy YAML
-    description: Dołącza oczyszczone dashboardy zapisane w YAML.
+    name: Dołącz wszystkie pulpity Lovelace
+    description: Pobiera przez API konfiguracje pulpitów zapisanych w YAML i pamięci Home Assistanta oraz zasoby Lovelace.
+  include_storage:
+    name: Dołącz przefiltrowany katalog .storage
+    description: Opcjonalnie dołącza wszystkie poprawne pliki JSON z .storage po usunięciu haseł, tokenów, kluczy i innych danych uwierzytelniających. Surowe pliki nigdy nie są kopiowane.
   include_diagnostics:
     name: Dołącz rozszerzoną diagnostykę
     description: Przy wykryciu błędu pobiera przefiltrowane naprawy, logi oraz diagnostykę problematycznych integracji i urządzeń.

@@ -1,5 +1,5 @@
 name: "HA LLM Snapshot Exporter"
-version: "0.2.0"
+version: "0.3.0"
 slug: "ha_llm_snapshot"
 description: >-
   Creates a portable, privacy-filtered Home Assistant snapshot for analysis
@@ -29,6 +29,7 @@ options:
   include_services: true
   include_packages: true
   include_dashboards: true
+  include_storage: false
   include_diagnostics: true
   redact_locations: false
   keep_snapshots: 3
@@ -37,6 +38,7 @@ schema:
   include_services: bool
   include_packages: bool
   include_dashboards: bool
+  include_storage: bool
   include_diagnostics: bool
   redact_locations: bool
   keep_snapshots: "int(1,20)"

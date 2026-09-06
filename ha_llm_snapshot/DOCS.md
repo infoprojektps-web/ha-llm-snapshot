@@ -17,7 +17,10 @@ Archiwa są również dostępne w `/share/ha-llm-snapshots/`.
 - encje istniejące tylko w bieżącym stanie oraz przefiltrowane stany;
 - urządzenia, obszary, piętra, etykiety i bezpieczne podsumowania integracji;
 - dostępne akcje/usługi Home Assistant;
-- oczyszczone automatyzacje, skrypty, sceny, pakiety i dashboardy YAML;
+- oczyszczone automatyzacje, skrypty, sceny i pakiety;
+- wszystkie pulpity Lovelace pobrane przez API, również utworzone w edytorze
+  graficznym i zapisane w pamięci Home Assistanta, wraz z zasobami Lovelace;
+- opcjonalnie: przefiltrowane pliki JSON z katalogu `.storage`;
 - indeks odwołań do encji i usług;
 - raport zdrowia z priorytetami, diagnostyką dostępności oraz potencjalnie
   brakującymi odwołaniami;
@@ -33,12 +36,16 @@ przerwie tworzenia ZIP.
 
 ## Prywatność
 
-Eksporter nigdy nie dołącza `secrets.yaml`, magazynu uwierzytelniania, danych
-konfiguracyjnych integracji, baz danych, kopii zapasowych ani multimediów.
-W wersji 0.2.0 może dołączyć ograniczony zestaw logów wyłącznie przy wykryciu
-problemu i po zastosowaniu filtra. Filtr zawsze usuwa typowe hasła, tokeny,
-klucze API, identyfikatory
-webhooków i dane logowania zapisane w adresach URL.
+Eksporter nigdy nie dołącza `secrets.yaml`, baz danych, kopii zapasowych ani
+multimediów. Od wersji 0.3.0 katalog `.storage` można dołączyć osobną opcją,
+która jest domyślnie wyłączona. Każdy plik musi być poprawnym JSON-em i jest
+rekurencyjnie filtrowany przed zapisaniem; surowe pliki `.storage` nie są
+kopiowane. Filtr zawsze usuwa typowe hasła, tokeny, PIN-y, klucze API,
+identyfikatory webhooków i dane logowania zapisane w adresach URL.
+
+Przed utworzeniem paczki do pełnej analizy otwórz kartę **Konfiguracja** dodatku,
+włącz **Dołącz przefiltrowany katalog .storage**, zapisz ustawienia i uruchom
+dodatek ponownie.
 
 Pełne identyfikatory encji i urządzeń, lokalne adresy IP, adresy MAC, numery VIN
 oraz numery seryjne są celowo zachowywane, ponieważ pozwalają modelowi poprawnie

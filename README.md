@@ -11,7 +11,7 @@ Instead of copying configuration files manually or explaining your setup piece b
 <p align="center">
   <img src="ha-llm-snapshot-panel.png"
        alt="HA LLM Snapshot Exporter panel in Home Assistant"
-       width="900">
+       width="600">
 </p>
 
 ## Why use it?

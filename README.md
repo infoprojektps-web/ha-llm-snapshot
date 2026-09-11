@@ -7,7 +7,7 @@ HA LLM Snapshot Exporter is a Home Assistant add-on that creates a privacy-filte
 Instead of copying configuration files manually or explaining your setup piece by piece, create one snapshot and upload it to the LLM you want to use.
 
 <p align="center">
-  <img src="docs/images/ha-llm-snapshot-panel.png"
+  <img src="ha-llm-snapshot-panel.png"
        alt="HA LLM Snapshot Exporter panel in Home Assistant"
        width="900">
 </p>

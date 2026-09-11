@@ -1,3 +1,5 @@
+![Dodaj repozytorium do Home Assistant](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)
+
 # HA LLM Snapshot Exporter
 
 **Give ChatGPT, Codex, Claude, Gemini or another LLM the technical context it actually needs to analyze your Home Assistant installation.**
